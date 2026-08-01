@@ -1,0 +1,9 @@
+"use client";
+import { FormEvent, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+export default function LoginPage(){
+ const router=useRouter(); const params=useSearchParams();
+ const [studentId,setStudentId]=useState(params.get("student")||""); const [pin,setPin]=useState(""); const [role,setRole]=useState("student"); const [error,setError]=useState("");
+ function submit(e:FormEvent){e.preventDefault();setError(""); if(!/^FFA-\d{4}-\d{3}$/.test(studentId.toUpperCase())) return setError("Use an ID like FFA-2026-001."); if(!/^\d{4}$/.test(pin)) return setError("Enter a 4-digit PIN."); sessionStorage.setItem("ffaDemoUser",JSON.stringify({studentId:studentId.toUpperCase(),role})); router.push(`/${role}`);}
+ return <div className="login-wrap"><div className="card login-card"><div className="brand" style={{color:"var(--navy)"}}><span className="seal">FFA</span><span>Secure Portal</span></div><h1>Welcome back</h1><p>This starter runs in demo mode until Firebase PIN verification is deployed.</p><form onSubmit={submit}><label>Portal</label><select value={role} onChange={e=>setRole(e.target.value)}><option value="student">Student</option><option value="parent">Parent</option></select><label>Student ID</label><input value={studentId} onChange={e=>setStudentId(e.target.value)} placeholder="FFA-2026-001" autoCapitalize="characters"/><label>Shared 4-digit PIN</label><input value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,"").slice(0,4))} inputMode="numeric" type="password" placeholder="••••"/><button className="btn btn-primary" style={{width:"100%",marginTop:20}}>Sign in</button>{error&&<div className="error">{error}</div>}</form><p style={{fontSize:13,color:"var(--muted)",marginTop:18}}>Teacher access will use Google sign-in rather than a shared PIN.</p></div></div>
+}

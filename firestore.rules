@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function role() { return request.auth.token.role; }
+    function studentId() { return request.auth.token.studentId; }
+
+    match /students/{id} {
+      allow read: if signedIn() && (role() == 'teacher' || studentId() == id);
+      allow write: if signedIn() && role() == 'teacher';
+    }
+    match /transactions/{id} {
+      allow read: if signedIn() && (role() == 'teacher' || resource.data.studentId == studentId());
+      allow create, update, delete: if signedIn() && role() == 'teacher';
+    }
+    match /marketplace/{id} {
+      allow read: if signedIn();
+      allow write: if signedIn() && role() == 'teacher';
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
