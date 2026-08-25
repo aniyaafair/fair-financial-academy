@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { DecoratedDebitCard } from "@/components/DecoratedDebitCard";
 import {
@@ -22,6 +22,11 @@ import {
   watchAcademyMembers,
 } from "@/lib/firestoreAcademy";
 
+const TEACHER_NAME = "Ms. Fair";
+const DEPOSIT_REASONS = ["Homework", "Preparation", "Participation", "Effort", "Classroom Job", "Helping Others"];
+const WITHDRAWAL_REASONS = ["Missing Work", "Disruption", "Unsafe Behavior", "Damaged Supplies", "Store Purchase"];
+const REASON_OPTIONS = [...DEPOSIT_REASONS, ...WITHDRAWAL_REASONS, "Custom Reason"];
+
 export default function TeacherPage() {
   const [members, setMembers] = useState<AcademyMember[]>([]);
   const [careers, setCareers] = useState<AcademyCareer[]>([]);
@@ -30,7 +35,14 @@ export default function TeacherPage() {
   const [startingBalance, setStartingBalance] = useState("0");
   const [selectedId, setSelectedId] = useState("");
   const [amount, setAmount] = useState("5");
-  const [reason, setReason] = useState("Classroom cash deposit");
+  const [reason, setReason] = useState(DEPOSIT_REASONS[0]);
+  const [customReason, setCustomReason] = useState("");
+  const [classAmount, setClassAmount] = useState("5");
+  const [classReason, setClassReason] = useState(DEPOSIT_REASONS[0]);
+  const [classCustomReason, setClassCustomReason] = useState("");
+  const [checkedMemberIds, setCheckedMemberIds] = useState<string[]>([]);
+  const [transactionBusy, setTransactionBusy] = useState(false);
+  const transactionLock = useRef(false);
   const [notice, setNotice] = useState("Connecting to Firebase…");
   const [busy, setBusy] = useState(true);
 
@@ -126,66 +138,158 @@ export default function TeacherPage() {
     setNotice(`${next.name} was added. ID: ${next.id} • Shared PIN: ${next.pin}`);
   }
 
+  function resolvedReason(choice: string, custom: string) {
+    return choice === "Custom Reason" ? custom.trim() : choice;
+  }
+
+  async function withTransactionLock(action: () => Promise<void>) {
+    if (transactionLock.current) return;
+    transactionLock.current = true;
+    setTransactionBusy(true);
+    try {
+      await action();
+    } catch (error) {
+      setNotice(`Transaction error: ${error instanceof Error ? error.message : "Please try again."}`);
+    } finally {
+      transactionLock.current = false;
+      setTransactionBusy(false);
+    }
+  }
+
   async function postTransaction(direction: 1 | -1) {
+    if (transactionLock.current) return;
     const value = Number(amount);
-    if (!selected || !Number.isFinite(value) || value <= 0) return;
-    const signed = value * direction;
-    const updated: AcademyMember = {
-      ...selected,
-      balance: selected.balance + signed,
-      transactions: [
-        {
-          id: crypto.randomUUID(),
-          date: new Date().toISOString(),
-          description: reason || (direction === 1 ? "Deposit" : "Withdrawal"),
-          category: direction === 1 ? "Deposit" : "Withdrawal",
-          amount: signed,
-        },
-        ...selected.transactions,
-      ],
-    };
-    await saveAcademyMember(updated);
-    setNotice(`${direction === 1 ? "Deposit" : "Withdrawal"} posted for ${selected.name}.`);
+    const description = resolvedReason(reason, customReason);
+    if (!selected || !Number.isFinite(value) || value <= 0) {
+      setNotice("Enter an amount greater than $0.");
+      return;
+    }
+    if (!description) {
+      setNotice("Enter a custom reason before posting the transaction.");
+      return;
+    }
+    const action = direction === 1 ? "deposit" : "withdrawal";
+    if (!confirm(`Confirm a $${value.toFixed(2)} ${action} for ${selected.name}?\nReason: ${description}`)) return;
+
+    await withTransactionLock(async () => {
+      const signed = value * direction;
+      const updated: AcademyMember = {
+        ...selected,
+        balance: selected.balance + signed,
+        transactions: [
+          {
+            id: crypto.randomUUID(),
+            date: new Date().toISOString(),
+            description,
+            category: direction === 1 ? "Deposit" : "Withdrawal",
+            amount: signed,
+            teacher: TEACHER_NAME,
+          },
+          ...selected.transactions,
+        ],
+      };
+      await saveAcademyMember(updated);
+      setNotice(`${direction === 1 ? "Deposit" : "Withdrawal"} posted for ${selected.name}.`);
+    });
+  }
+
+  async function postClassTransaction(direction: 1 | -1) {
+    if (transactionLock.current) return;
+    const value = Number(classAmount);
+    const description = resolvedReason(classReason, classCustomReason);
+    const recipients = members.filter((member) => checkedMemberIds.includes(member.id));
+    if (!Number.isFinite(value) || value <= 0) {
+      setNotice("Enter a class transaction amount greater than $0.");
+      return;
+    }
+    if (!description) {
+      setNotice("Enter a custom class transaction reason before posting.");
+      return;
+    }
+    if (!recipients.length) {
+      setNotice("Select at least one Academy Member.");
+      return;
+    }
+    const action = direction === 1 ? "deposit" : "withdrawal";
+    if (!confirm(`Confirm a $${value.toFixed(2)} ${action} for ${recipients.length} selected member(s)?\nReason: ${description}`)) return;
+
+    await withTransactionLock(async () => {
+      const signed = value * direction;
+      const now = new Date().toISOString();
+      const batchId = crypto.randomUUID();
+      const updated = recipients.map((member) => ({
+        ...member,
+        balance: member.balance + signed,
+        transactions: [
+          {
+            id: crypto.randomUUID(),
+            batchId,
+            date: now,
+            description,
+            category: direction === 1 ? "Deposit" as const : "Withdrawal" as const,
+            amount: signed,
+            teacher: TEACHER_NAME,
+          },
+          ...member.transactions,
+        ],
+      }));
+      await saveManyAcademyMembers(updated);
+      setNotice(`${direction === 1 ? "Deposit" : "Withdrawal"} posted for ${recipients.length} selected Academy Member(s).`);
+    });
   }
 
   async function runFridayPayroll() {
-    const today = new Date().toISOString();
-    const updated = members.map((member) => ({
-      ...member,
-      balance: member.balance + member.weeklyPay,
-      transactions: [
-        {
-          id: crypto.randomUUID(),
-          date: today,
-          description: "Friday academy paycheck",
-          category: "Payroll" as const,
-          amount: member.weeklyPay,
-        },
-        ...member.transactions,
-      ],
-    }));
-    await saveManyAcademyMembers(updated);
-    setNotice("Friday payroll was posted for every Academy Member.");
+    if (transactionLock.current) return;
+    if (!members.length || !confirm(`Run Friday payroll for all ${members.length} Academy Member(s)?`)) return;
+    await withTransactionLock(async () => {
+      const today = new Date().toISOString();
+      const batchId = crypto.randomUUID();
+      const updated = members.map((member) => ({
+        ...member,
+        balance: member.balance + member.weeklyPay,
+        transactions: [
+          {
+            id: crypto.randomUUID(),
+            batchId,
+            date: today,
+            description: "Friday academy paycheck",
+            category: "Payroll" as const,
+            amount: member.weeklyPay,
+            teacher: TEACHER_NAME,
+          },
+          ...member.transactions,
+        ],
+      }));
+      await saveManyAcademyMembers(updated);
+      setNotice("Friday payroll was posted for every Academy Member.");
+    });
   }
 
   async function collectFridayRent() {
-    const today = new Date().toISOString();
-    const updated = members.map((member) => ({
-      ...member,
-      balance: member.balance - 20,
-      transactions: [
-        {
-          id: crypto.randomUUID(),
-          date: today,
-          description: "Friday classroom rent",
-          category: "Rent" as const,
-          amount: -20,
-        },
-        ...member.transactions,
-      ],
-    }));
-    await saveManyAcademyMembers(updated);
-    setNotice("Friday rent of $20 was deducted for every Academy Member.");
+    if (transactionLock.current) return;
+    if (!members.length || !confirm(`Collect $20 Friday rent from all ${members.length} Academy Member(s)?`)) return;
+    await withTransactionLock(async () => {
+      const today = new Date().toISOString();
+      const batchId = crypto.randomUUID();
+      const updated = members.map((member) => ({
+        ...member,
+        balance: member.balance - 20,
+        transactions: [
+          {
+            id: crypto.randomUUID(),
+            batchId,
+            date: today,
+            description: "Friday classroom rent",
+            category: "Rent" as const,
+            amount: -20,
+            teacher: TEACHER_NAME,
+          },
+          ...member.transactions,
+        ],
+      }));
+      await saveManyAcademyMembers(updated);
+      setNotice("Friday rent of $20 was deducted for every Academy Member.");
+    });
   }
 
   async function createCareer(event: FormEvent) {
@@ -282,8 +386,8 @@ export default function TeacherPage() {
           <h2>Friday Money Day</h2>
           <p>Run payroll first, then collect $20 rent. Students can shop Friday afternoon with the remaining balance.</p>
           <div className="actions no-print">
-            <button className="btn btn-primary" onClick={runFridayPayroll}>1. Run Friday payroll</button>
-            <button className="btn btn-secondary" onClick={collectFridayRent}>2. Collect Friday rent</button>
+            <button disabled={transactionBusy} className="btn btn-primary" onClick={runFridayPayroll}>1. Run Friday payroll</button>
+            <button disabled={transactionBusy} className="btn btn-secondary" onClick={collectFridayRent}>2. Collect Friday rent</button>
           </div>
         </div>
       </section>
@@ -341,16 +445,69 @@ export default function TeacherPage() {
 
       {selected && (
         <section className="section two-column">
-          <div className="card">
-            <h2>Banking for {selected.name}</h2>
+          <div className="card transaction-card">
+            <h2>Individual Transaction</h2>
             <label>Select member</label>
             <select value={selected.id} onChange={(event) => setSelectedId(event.target.value)}>{members.map((member) => <option value={member.id} key={member.id}>{member.name}</option>)}</select>
             <label>Amount</label><input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
-            <label>Reason</label><input value={reason} onChange={(event) => setReason(event.target.value)} />
-            <div className="actions no-print"><button className="btn btn-primary" onClick={() => postTransaction(1)}>Deposit</button><button className="btn btn-secondary" onClick={() => postTransaction(-1)}>Withdraw</button></div>
+            <label>Reason</label>
+            <select value={reason} onChange={(event) => setReason(event.target.value)}>
+              <optgroup label="Deposits">{DEPOSIT_REASONS.map((item) => <option key={item}>{item}</option>)}</optgroup>
+              <optgroup label="Withdrawals">{WITHDRAWAL_REASONS.map((item) => <option key={item}>{item}</option>)}</optgroup>
+              <option>{REASON_OPTIONS[REASON_OPTIONS.length - 1]}</option>
+            </select>
+            {reason === "Custom Reason" && <input aria-label="Custom individual reason" value={customReason} onChange={(event) => setCustomReason(event.target.value)} placeholder="Type the custom reason" />}
+            <div className="actions no-print"><button disabled={transactionBusy} className="btn btn-primary" onClick={() => postTransaction(1)}>Deposit</button><button disabled={transactionBusy} className="btn btn-secondary" onClick={() => postTransaction(-1)}>Withdraw</button></div>
             <p><strong>Shared parent/student PIN:</strong> {selected.pin}</p>
           </div>
           <div><DecoratedDebitCard member={selected} /><p className="muted-note">Student card choices synchronize across devices.</p></div>
+        </section>
+      )}
+
+      {!!members.length && (
+        <section className="section two-column">
+          <div className="card transaction-card">
+            <div className="section-title-row">
+              <div><h2>Class Transaction</h2><p>Choose any members, or select the whole class.</p></div>
+              <div className="actions no-print compact-actions">
+                <button className="text-button" type="button" onClick={() => setCheckedMemberIds(members.map((member) => member.id))}>Select all</button>
+                <button className="text-button" type="button" onClick={() => setCheckedMemberIds([])}>Clear</button>
+              </div>
+            </div>
+            <div className="member-checklist">
+              {members.map((member) => (
+                <label className="member-check" key={member.id}>
+                  <input type="checkbox" checked={checkedMemberIds.includes(member.id)} onChange={(event) => setCheckedMemberIds((current) => event.target.checked ? [...current, member.id] : current.filter((id) => id !== member.id))} />
+                  <span>{member.name}</span><small>{member.id}</small>
+                </label>
+              ))}
+            </div>
+            <label>Amount per member</label><input inputMode="decimal" value={classAmount} onChange={(event) => setClassAmount(event.target.value)} />
+            <label>Reason</label>
+            <select value={classReason} onChange={(event) => setClassReason(event.target.value)}>
+              <optgroup label="Deposits">{DEPOSIT_REASONS.map((item) => <option key={item}>{item}</option>)}</optgroup>
+              <optgroup label="Withdrawals">{WITHDRAWAL_REASONS.map((item) => <option key={item}>{item}</option>)}</optgroup>
+              <option>{REASON_OPTIONS[REASON_OPTIONS.length - 1]}</option>
+            </select>
+            {classReason === "Custom Reason" && <input aria-label="Custom class reason" value={classCustomReason} onChange={(event) => setClassCustomReason(event.target.value)} placeholder="Type the custom reason" />}
+            <div className="actions no-print"><button disabled={transactionBusy} className="btn btn-primary" onClick={() => postClassTransaction(1)}>Deposit to selected</button><button disabled={transactionBusy} className="btn btn-secondary" onClick={() => postClassTransaction(-1)}>Withdraw from selected</button></div>
+          </div>
+
+          <div className="card">
+            <h2>Transaction History</h2>
+            <label>View member</label>
+            <select value={selected?.id ?? ""} onChange={(event) => setSelectedId(event.target.value)}>{members.map((member) => <option value={member.id} key={member.id}>{member.name}</option>)}</select>
+            {selected?.transactions.length ? (
+              <div className="transaction-history">
+                {selected.transactions.map((transaction) => (
+                  <div className="transaction-history-row" key={transaction.id}>
+                    <div><strong>{transaction.description}</strong><span>{new Date(transaction.date).toLocaleString()} • {transaction.teacher ?? "Academy system"}</span></div>
+                    <strong className={transaction.amount >= 0 ? "money-positive" : "money-negative"}>{transaction.amount >= 0 ? "+" : "−"}${Math.abs(transaction.amount).toFixed(2)}</strong>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="muted-note">No transactions yet.</p>}
+          </div>
         </section>
       )}
     </DashboardShell>
