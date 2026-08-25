@@ -25,7 +25,6 @@ import {
 const TEACHER_NAME = "Ms. Fair";
 const DEPOSIT_REASONS = [
   "Completed Homework",
-  "Came Prepared",
   "Positive Participation",
   "Followed Instructions the First Time",
   "Completed Classroom Job",
@@ -37,7 +36,6 @@ const DEPOSIT_REASONS = [
 ];
 const WITHDRAWAL_REASONS = [
   "Missing Homework",
-  "Came Unprepared",
   "Did Not Participate Appropriately",
   "Did Not Follow Instructions the First Time",
   "Did Not Complete Classroom Job",
