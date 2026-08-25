@@ -7,6 +7,8 @@ export type Transaction = {
   description: string;
   category: "Deposit" | "Withdrawal" | "Payroll" | "Rent" | "Marketplace" | "Reward";
   amount: number;
+  teacher?: string;
+  batchId?: string;
 };
 
 export type AcademyMember = {
