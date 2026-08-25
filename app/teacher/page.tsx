@@ -23,8 +23,31 @@ import {
 } from "@/lib/firestoreAcademy";
 
 const TEACHER_NAME = "Ms. Fair";
-const DEPOSIT_REASONS = ["Homework", "Preparation", "Participation", "Effort", "Classroom Job", "Helping Others"];
-const WITHDRAWAL_REASONS = ["Missing Work", "Disruption", "Unsafe Behavior", "Damaged Supplies", "Store Purchase"];
+const DEPOSIT_REASONS = [
+  "Completed Homework",
+  "Came Prepared",
+  "Positive Participation",
+  "Followed Instructions the First Time",
+  "Completed Classroom Job",
+  "Helped Others",
+  "Brought or Properly Used Supplies",
+  "Being Safe",
+  "Being Responsible",
+  "Being Respectful",
+];
+const WITHDRAWAL_REASONS = [
+  "Missing Homework",
+  "Came Unprepared",
+  "Did Not Participate Appropriately",
+  "Did Not Follow Instructions the First Time",
+  "Did Not Complete Classroom Job",
+  "Did Not Help or Cooperate with Others",
+  "Needed Extra Copies or Supplies",
+  "Being Unsafe",
+  "Being Irresponsible",
+  "Being Disrespectful",
+  "Store Purchase",
+];
 const REASON_OPTIONS = [...DEPOSIT_REASONS, ...WITHDRAWAL_REASONS, "Custom Reason"];
 
 export default function TeacherPage() {
