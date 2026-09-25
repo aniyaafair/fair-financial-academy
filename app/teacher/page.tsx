@@ -33,6 +33,9 @@ const DEPOSIT_REASONS = [
   "Being Safe",
   "Being Responsible",
   "Being Respectful",
+  "Stayed Focused During Work Time",
+  "Submitted Work",
+  "Used an Appropriate Voice Level",
 ];
 const WITHDRAWAL_REASONS = [
   "Missing Homework",
@@ -45,6 +48,8 @@ const WITHDRAWAL_REASONS = [
   "Being Irresponsible",
   "Being Disrespectful",
   "Store Purchase",
+  "Excessive Talking",
+  "Did Not Submit Work",
 ];
 const REASON_OPTIONS = [...DEPOSIT_REASONS, ...WITHDRAWAL_REASONS, "Custom Reason"];
 
@@ -64,6 +69,7 @@ export default function TeacherPage() {
   const [checkedMemberIds, setCheckedMemberIds] = useState<string[]>([]);
   const [transactionBusy, setTransactionBusy] = useState(false);
   const transactionLock = useRef(false);
+  const audioContext = useRef<AudioContext | null>(null);
   const [notice, setNotice] = useState("Connecting to Firebase…");
   const [busy, setBusy] = useState(true);
 
@@ -163,6 +169,31 @@ export default function TeacherPage() {
     return choice === "Custom Reason" ? custom.trim() : choice;
   }
 
+  function playTransactionChime(direction: 1 | -1) {
+    try {
+      const context = audioContext.current ?? new AudioContext();
+      audioContext.current = context;
+      void context.resume();
+      const start = context.currentTime;
+      const notes = direction === 1 ? [523.25, 659.25, 783.99] : [523.25, 392, 293.66];
+      notes.forEach((frequency, index) => {
+        const oscillator = context.createOscillator();
+        const volume = context.createGain();
+        const at = start + index * 0.11;
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(frequency, at);
+        volume.gain.setValueAtTime(0.0001, at);
+        volume.gain.exponentialRampToValueAtTime(0.12, at + 0.015);
+        volume.gain.exponentialRampToValueAtTime(0.0001, at + 0.22);
+        oscillator.connect(volume).connect(context.destination);
+        oscillator.start(at);
+        oscillator.stop(at + 0.23);
+      });
+    } catch {
+      // Transactions still work if the browser does not support or allow audio.
+    }
+  }
+
   async function withTransactionLock(action: () => Promise<void>) {
     if (transactionLock.current) return;
     transactionLock.current = true;
@@ -210,6 +241,7 @@ export default function TeacherPage() {
         ],
       };
       await saveAcademyMember(updated);
+      playTransactionChime(direction);
       setNotice(`${direction === 1 ? "Deposit" : "Withdrawal"} posted for ${selected.name}.`);
     });
   }
@@ -255,6 +287,7 @@ export default function TeacherPage() {
         ],
       }));
       await saveManyAcademyMembers(updated);
+      playTransactionChime(direction);
       setNotice(`${direction === 1 ? "Deposit" : "Withdrawal"} posted for ${recipients.length} selected Academy Member(s).`);
     });
   }
@@ -339,6 +372,22 @@ export default function TeacherPage() {
     setNotice(`${updated.name} was updated.`);
   }
 
+  async function reassignMember(member: AcademyMember, nextCareerId: string) {
+    const nextCareer = activeCareers.find((career) => career.id === nextCareerId);
+    if (!nextCareer || nextCareer.name === member.career) return;
+    const filled = filledByCareer.get(nextCareer.name) ?? 0;
+    if (filled >= nextCareer.positions) {
+      setNotice(`${nextCareer.name} is full (${filled}/${nextCareer.positions}). Increase its positions or choose another career.`);
+      return;
+    }
+    try {
+      await saveAcademyMember({ ...member, career: nextCareer.name, weeklyPay: nextCareer.pay });
+      setNotice(`${member.name} is now ${nextCareer.name}. Future paychecks will use $${nextCareer.pay} weekly.`);
+    } catch (error) {
+      setNotice(`Could not update ${member.name}'s career: ${error instanceof Error ? error.message : "Please try again."}`);
+    }
+  }
+
   async function deleteCareer(career: AcademyCareer) {
     const filled = filledByCareer.get(career.name) ?? 0;
     if (filled > 0) {
@@ -415,7 +464,7 @@ export default function TeacherPage() {
 
       <section className="card">
         <div className="page-heading" style={{ marginBottom: 12 }}>
-          <div><h2>Academy Careers</h2><p>Change names, pay, or positions here—no code editing needed.</p></div>
+          <div><h2>Academy Careers</h2><p>Edit available jobs here. At the start of each month, assign students new jobs in the Academy Members table below.</p></div>
         </div>
         <div className="table-scroll">
           <table className="table">
@@ -447,7 +496,8 @@ export default function TeacherPage() {
       </section>
 
       <section className="card">
-        <h2>Academy Members</h2>
+          <h2>Academy Members</h2>
+          <p>Monthly job rotation: choose a new career for each student. Their next paycheck uses the new job’s weekly pay; past transactions stay the same.</p>
         <div className="table-scroll">
           <table className="table">
             <thead><tr><th>Name</th><th>ID</th><th>Shared PIN</th><th>Career</th><th>Pay</th><th>Balance</th><th /></tr></thead>
@@ -455,7 +505,9 @@ export default function TeacherPage() {
               {members.map((member) => (
                 <tr key={member.id}>
                   <td><button className="link-button" onClick={() => setSelectedId(member.id)}>{member.name}</button></td>
-                  <td>{member.id}</td><td><strong>{member.pin}</strong></td><td>{member.career}</td><td>${member.weeklyPay}</td><td>${member.balance.toFixed(2)}</td>
+                  <td>{member.id}</td><td><strong>{member.pin}</strong></td>
+                  <td><select aria-label={`Career for ${member.name}`} value={activeCareers.find((career) => career.name === member.career)?.id ?? ""} onChange={(event) => reassignMember(member, event.target.value)}><option value="" disabled>{member.career}</option>{activeCareers.map((career) => <option key={career.id} value={career.id}>{career.name}</option>)}</select></td>
+                  <td>${member.weeklyPay}</td><td>${member.balance.toFixed(2)}</td>
                   <td><button className="danger-button no-print" onClick={() => removeMember(member.id)}>Remove</button></td>
                 </tr>
               ))}
