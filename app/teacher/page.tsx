@@ -314,6 +314,40 @@ export default function TeacherPage() {
     });
   }
 
+  async function clearSelectedBalances() {
+    if (transactionLock.current) return;
+    const recipients = members.filter((member) => checkedMemberIds.includes(member.id));
+    if (!recipients.length) {
+      setNotice("Select at least one Academy Member to clear balances.");
+      return;
+    }
+    const affected = recipients.filter((member) => member.balance !== 0);
+    if (!affected.length) {
+      setNotice("The selected members already have $0 balances.");
+      return;
+    }
+    if (!confirm(`Set the balances of ${affected.length} selected Academy Member(s) to $0?\n\nTheir accounts, PINs, jobs, and transaction history will be kept. This will change their current balances.`)) return;
+    await withTransactionLock(async () => {
+      const batchId = crypto.randomUUID();
+      const date = new Date().toISOString();
+      await saveManyAcademyMembers(affected.map((member) => ({
+        ...member,
+        balance: 0,
+        transactions: [{
+          id: crypto.randomUUID(),
+          batchId,
+          date,
+          description: "Balance cleared to $0",
+          category: "Adjustment" as const,
+          amount: -member.balance,
+          teacher: TEACHER_NAME,
+        }, ...member.transactions],
+      })));
+      setNotice(`Cleared ${affected.length} balance(s) to $0. Student accounts and transaction histories were kept.`);
+      setCheckedMemberIds([]);
+    });
+  }
+
   async function runFridayPayroll() {
     if (transactionLock.current) return;
     if (!members.length || !confirm(`Run Friday payroll for all ${members.length} Academy Member(s)?`)) return;
@@ -580,7 +614,7 @@ export default function TeacherPage() {
               <div><h2>Class Transaction</h2><p>Choose any members, or select the whole class.</p></div>
               <div className="actions no-print compact-actions">
                 <button className="text-button" type="button" onClick={() => setCheckedMemberIds(members.map((member) => member.id))}>Select all</button>
-                <button className="text-button" type="button" onClick={() => setCheckedMemberIds([])}>Clear</button>
+                <button className="text-button" type="button" onClick={() => setCheckedMemberIds([])}>Deselect all</button>
               </div>
             </div>
             <div className="member-checklist">
@@ -600,6 +634,11 @@ export default function TeacherPage() {
             </select>
             {classReason === "Custom Reason" && <input aria-label="Custom class reason" value={classCustomReason} onChange={(event) => setClassCustomReason(event.target.value)} placeholder="Type the custom reason" />}
             <div className="actions no-print"><button disabled={transactionBusy} className="btn btn-primary" onClick={() => postClassTransaction(1)}>Deposit to selected</button><button disabled={transactionBusy} className="btn btn-secondary" onClick={() => postClassTransaction(-1)}>Withdraw from selected</button></div>
+            <div className="no-print" style={{ marginTop: 24, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+              <h3>Reset balances</h3>
+              <p>Set selected students' balances to $0. Their accounts, jobs, PINs, and transaction history stay in place.</p>
+              <button disabled={transactionBusy || !checkedMemberIds.length} className="danger-button" type="button" onClick={clearSelectedBalances}>Clear selected balances ({checkedMemberIds.length})</button>
+            </div>
           </div>
 
           <div className="card">
