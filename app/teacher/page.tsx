@@ -23,6 +23,7 @@ import {
 } from "@/lib/firestoreAcademy";
 
 const TEACHER_NAME = "Ms. Fair";
+const WEEKLY_RENT = 10;
 const DEPOSIT_REASONS = [
   "Completed Homework",
   "Positive Participation",
@@ -342,13 +343,13 @@ export default function TeacherPage() {
 
   async function collectFridayRent() {
     if (transactionLock.current) return;
-    if (!members.length || !confirm(`Collect $20 Friday rent from all ${members.length} Academy Member(s)?`)) return;
+    if (!members.length || !confirm(`Collect $${WEEKLY_RENT} Friday rent from all ${members.length} Academy Member(s)?`)) return;
     await withTransactionLock(async () => {
       const today = new Date().toISOString();
       const batchId = crypto.randomUUID();
       const updated = members.map((member) => ({
         ...member,
-        balance: member.balance - 20,
+        balance: member.balance - WEEKLY_RENT,
         transactions: [
           {
             id: crypto.randomUUID(),
@@ -356,14 +357,14 @@ export default function TeacherPage() {
             date: today,
             description: "Friday classroom rent",
             category: "Rent" as const,
-            amount: -20,
+            amount: -WEEKLY_RENT,
             teacher: TEACHER_NAME,
           },
           ...member.transactions,
         ],
       }));
       await saveManyAcademyMembers(updated);
-      setNotice("Friday rent of $20 was deducted for every Academy Member.");
+      setNotice(`Friday rent of $${WEEKLY_RENT} was deducted for every Academy Member.`);
     });
   }
 
@@ -465,7 +466,7 @@ export default function TeacherPage() {
         <div className="card"><div>Academy Members</div><div className="metric">{members.length}</div></div>
         <div className="card"><div>Class bank balance</div><div className="metric">${classBalance.toFixed(2)}</div></div>
         <div className="card"><div>Career positions</div><div className="metric">{activeCareers.reduce((sum, item) => sum + item.positions, 0)}</div></div>
-        <div className="card"><div>Friday rent total</div><div className="metric">${(members.length * 20).toFixed(2)}</div></div>
+        <div className="card"><div>Friday rent total</div><div className="metric">${(members.length * WEEKLY_RENT).toFixed(2)}</div></div>
       </div>
 
       <section className="section two-column">
@@ -487,7 +488,7 @@ export default function TeacherPage() {
 
         <div className="card">
           <h2>Friday Money Day</h2>
-          <p>Run payroll first, then collect $20 rent. Students can shop Friday afternoon with the remaining balance.</p>
+          <p>Run payroll first, then collect ${WEEKLY_RENT} rent. Students can shop Friday afternoon with the remaining balance.</p>
           <div className="actions no-print">
             <button disabled={transactionBusy} className="btn btn-primary" onClick={runFridayPayroll}>1. Run Friday payroll</button>
             <button disabled={transactionBusy} className="btn btn-secondary" onClick={collectFridayRent}>2. Collect Friday rent</button>
