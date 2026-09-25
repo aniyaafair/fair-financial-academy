@@ -59,7 +59,7 @@ export default function StudentPage() {
       <div className="grid">
         <div className="card"><div>Current balance</div><div className="metric">${member.balance.toFixed(2)}</div></div>
         <div className="card"><div>Current career</div><h2>{member.career}</h2><span className="pill">${member.weeklyPay} weekly</span></div>
-        <div className="card"><div>Friday rent</div><h2>$20</h2><p>Payroll and rent post Friday morning.</p></div>
+        <div className="card"><div>Friday rent</div><h2>$10</h2><p>Payroll and rent post Friday morning.</p></div>
       </div>
 
       <section className="section card-studio-layout">
