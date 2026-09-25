@@ -5,7 +5,7 @@ export type Transaction = {
   id: string;
   date: string;
   description: string;
-  category: "Deposit" | "Withdrawal" | "Payroll" | "Rent" | "Marketplace" | "Reward";
+  category: "Deposit" | "Withdrawal" | "Payroll" | "Rent" | "Marketplace" | "Reward" | "Adjustment";
   amount: number;
   teacher?: string;
   batchId?: string;
