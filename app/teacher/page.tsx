@@ -173,29 +173,44 @@ export default function TeacherPage() {
     return choice === "Custom Reason" ? custom.trim() : choice;
   }
 
-  function playTransactionChime(direction: 1 | -1) {
+  function enableTransactionAudio() {
     try {
       const context = audioContext.current ?? new AudioContext();
       audioContext.current = context;
       void context.resume();
-      const start = context.currentTime;
-      const notes = direction === 1 ? [523.25, 659.25, 783.99] : [523.25, 392, 293.66];
+    } catch {
+      // Transactions still work if browser audio is unavailable.
+    }
+  }
+
+  function playTransactionChime(direction: 1 | -1) {
+    const context = audioContext.current;
+    if (!context) return;
+    try {
+      const start = context.currentTime + 0.02;
+      // A rising major chord for deposits; a falling minor phrase for withdrawals.
+      const notes = direction === 1 ? [523.25, 659.25, 783.99, 1046.5] : [392, 349.23, 311.13, 261.63];
       notes.forEach((frequency, index) => {
         const oscillator = context.createOscillator();
         const volume = context.createGain();
-        const at = start + index * 0.11;
-        oscillator.type = "sine";
+        const at = start + index * (direction === 1 ? 0.105 : 0.17);
+        oscillator.type = direction === 1 ? "triangle" : "sine";
         oscillator.frequency.setValueAtTime(frequency, at);
         volume.gain.setValueAtTime(0.0001, at);
-        volume.gain.exponentialRampToValueAtTime(0.12, at + 0.015);
-        volume.gain.exponentialRampToValueAtTime(0.0001, at + 0.22);
+        volume.gain.exponentialRampToValueAtTime(0.24, at + 0.02);
+        volume.gain.exponentialRampToValueAtTime(0.0001, at + (direction === 1 ? 0.28 : 0.36));
         oscillator.connect(volume).connect(context.destination);
         oscillator.start(at);
-        oscillator.stop(at + 0.23);
+        oscillator.stop(at + (direction === 1 ? 0.29 : 0.37));
       });
     } catch {
       // Transactions still work if the browser does not support or allow audio.
     }
+  }
+
+  function previewTransactionChime(direction: 1 | -1) {
+    enableTransactionAudio();
+    playTransactionChime(direction);
   }
 
   async function withTransactionLock(action: () => Promise<void>) {
@@ -224,6 +239,7 @@ export default function TeacherPage() {
       setNotice("Enter a custom reason before posting the transaction.");
       return;
     }
+    enableTransactionAudio();
     const action = direction === 1 ? "deposit" : "withdrawal";
     if (!confirm(`Confirm a $${value.toFixed(2)} ${action} for ${selected.name}?\nReason: ${description}`)) return;
 
@@ -267,6 +283,7 @@ export default function TeacherPage() {
       setNotice("Select at least one Academy Member.");
       return;
     }
+    enableTransactionAudio();
     const action = direction === 1 ? "deposit" : "withdrawal";
     if (!confirm(`Confirm a $${value.toFixed(2)} ${action} for ${recipients.length} selected member(s)?\nReason: ${description}`)) return;
 
@@ -548,6 +565,7 @@ export default function TeacherPage() {
             </select>
             {reason === "Custom Reason" && <input aria-label="Custom individual reason" value={customReason} onChange={(event) => setCustomReason(event.target.value)} placeholder="Type the custom reason" />}
             <div className="actions no-print"><button disabled={transactionBusy} className="btn btn-primary" onClick={() => postTransaction(1)}>Deposit</button><button disabled={transactionBusy} className="btn btn-secondary" onClick={() => postTransaction(-1)}>Withdraw</button></div>
+            <div className="actions no-print"><button className="text-button" type="button" onClick={() => previewTransactionChime(1)}>Hear deposit sound</button><button className="text-button" type="button" onClick={() => previewTransactionChime(-1)}>Hear withdrawal sound</button></div>
             <p><strong>Shared parent/student PIN:</strong> {selected.pin}</p>
           </div>
           <div><DecoratedDebitCard member={selected} /><p className="muted-note">Student card choices synchronize across devices.</p></div>
