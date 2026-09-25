@@ -31,6 +31,6 @@ export const weeklyPayroll=onSchedule({schedule:"0 16 * * 5",timeZone:"America/N
 export const weeklyRent=onSchedule({schedule:"0 8 * * 1",timeZone:"America/New_York",region:"us-east1"},async()=>{
   const students=await db.collection("students").where("active","==",true).get();
   const batch=db.batch();
-  students.docs.forEach(doc=>{batch.update(doc.ref,{balance:FieldValue.increment(-20)}); const tx=db.collection("transactions").doc(); batch.set(tx,{studentId:doc.id,type:"rent",amount:-20,description:"Weekly classroom rent",createdAt:FieldValue.serverTimestamp()});});
+  students.docs.forEach(doc=>{batch.update(doc.ref,{balance:FieldValue.increment(-10)}); const tx=db.collection("transactions").doc(); batch.set(tx,{studentId:doc.id,type:"rent",amount:-10,description:"Weekly classroom rent",createdAt:FieldValue.serverTimestamp()});});
   await batch.commit();
 });
