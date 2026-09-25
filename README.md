@@ -52,7 +52,7 @@ Scheduled functions generally require Firebase billing/Blaze because they use Cl
 - Updated Academy Careers
 - Firestore security-rule starter
 - Secure server-side PIN-login function scaffold
-- Scheduled Friday payroll and Monday $20 rent function scaffolds
+- Scheduled Friday payroll and Monday $10 rent function scaffolds
 
 ## Next development milestone
 1. Replace demo login with callable `pinLogin` and Firebase custom-token sign-in.
