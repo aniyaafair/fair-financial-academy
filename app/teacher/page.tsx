@@ -76,6 +76,8 @@ export default function TeacherPage() {
   const [newCareerName, setNewCareerName] = useState("");
   const [newCareerPay, setNewCareerPay] = useState("26");
   const [newCareerPositions, setNewCareerPositions] = useState("1");
+  const [jobDrafts, setJobDrafts] = useState<Record<string, string>>({});
+  const [savingJobs, setSavingJobs] = useState(false);
 
   useEffect(() => {
     let unsubscribeMembers = () => {};
@@ -125,6 +127,8 @@ export default function TeacherPage() {
     members.forEach((member) => counts.set(member.career, (counts.get(member.career) ?? 0) + 1));
     return counts;
   }, [members]);
+  const pendingJobChanges = members.filter((member) => jobDrafts[member.id] &&
+    activeCareers.find((career) => career.id === jobDrafts[member.id])?.name !== member.career);
 
   function nextMemberId() {
     const used = new Set(members.map((member) => member.id));
@@ -372,19 +376,31 @@ export default function TeacherPage() {
     setNotice(`${updated.name} was updated.`);
   }
 
-  async function reassignMember(member: AcademyMember, nextCareerId: string) {
-    const nextCareer = activeCareers.find((career) => career.id === nextCareerId);
-    if (!nextCareer || nextCareer.name === member.career) return;
-    const filled = filledByCareer.get(nextCareer.name) ?? 0;
-    if (filled >= nextCareer.positions) {
-      setNotice(`${nextCareer.name} is full (${filled}/${nextCareer.positions}). Increase its positions or choose another career.`);
+  async function saveMonthlyJobs() {
+    if (!pendingJobChanges.length || savingJobs) return;
+    const finalCounts = new Map<string, number>();
+    for (const member of members) {
+      const chosen = activeCareers.find((career) => career.id === jobDrafts[member.id]);
+      const name = chosen?.name ?? member.career;
+      finalCounts.set(name, (finalCounts.get(name) ?? 0) + 1);
+    }
+    const overfilled = activeCareers.find((career) => (finalCounts.get(career.name) ?? 0) > career.positions);
+    if (overfilled) {
+      setNotice(`${overfilled.name} has ${finalCounts.get(overfilled.name)} students but only ${overfilled.positions} positions. Adjust the selections or increase positions, then save.`);
       return;
     }
+    setSavingJobs(true);
     try {
-      await saveAcademyMember({ ...member, career: nextCareer.name, weeklyPay: nextCareer.pay });
-      setNotice(`${member.name} is now ${nextCareer.name}. Future paychecks will use $${nextCareer.pay} weekly.`);
+      await saveManyAcademyMembers(pendingJobChanges.map((member) => {
+        const chosen = activeCareers.find((career) => career.id === jobDrafts[member.id])!;
+        return { ...member, career: chosen.name, weeklyPay: chosen.pay };
+      }));
+      setNotice(`Saved ${pendingJobChanges.length} job change(s). Future paychecks use each student's new weekly pay.`);
+      setJobDrafts({});
     } catch (error) {
-      setNotice(`Could not update ${member.name}'s career: ${error instanceof Error ? error.message : "Please try again."}`);
+      setNotice(`Could not save job changes: ${error instanceof Error ? error.message : "Please try again."}`);
+    } finally {
+      setSavingJobs(false);
     }
   }
 
@@ -497,7 +513,7 @@ export default function TeacherPage() {
 
       <section className="card">
           <h2>Academy Members</h2>
-          <p>Monthly job rotation: choose a new career for each student. Their next paycheck uses the new job’s weekly pay; past transactions stay the same.</p>
+          <p>Monthly job rotation: choose jobs for students, then select Save job changes. You can swap students between full jobs before saving. Future paychecks use the new weekly pay.</p>
         <div className="table-scroll">
           <table className="table">
             <thead><tr><th>Name</th><th>ID</th><th>Shared PIN</th><th>Career</th><th>Pay</th><th>Balance</th><th /></tr></thead>
@@ -506,7 +522,7 @@ export default function TeacherPage() {
                 <tr key={member.id}>
                   <td><button className="link-button" onClick={() => setSelectedId(member.id)}>{member.name}</button></td>
                   <td>{member.id}</td><td><strong>{member.pin}</strong></td>
-                  <td><select aria-label={`Career for ${member.name}`} value={activeCareers.find((career) => career.name === member.career)?.id ?? ""} onChange={(event) => reassignMember(member, event.target.value)}><option value="" disabled>{member.career}</option>{activeCareers.map((career) => <option key={career.id} value={career.id}>{career.name}</option>)}</select></td>
+                  <td><select aria-label={`Career for ${member.name}`} disabled={savingJobs} value={jobDrafts[member.id] ?? activeCareers.find((career) => career.name === member.career)?.id ?? ""} onChange={(event) => setJobDrafts((current) => ({ ...current, [member.id]: event.target.value }))}><option value="" disabled>{member.career}</option>{activeCareers.map((career) => <option key={career.id} value={career.id}>{career.name}</option>)}</select></td>
                   <td>${member.weeklyPay}</td><td>${member.balance.toFixed(2)}</td>
                   <td><button className="danger-button no-print" onClick={() => removeMember(member.id)}>Remove</button></td>
                 </tr>
@@ -514,6 +530,7 @@ export default function TeacherPage() {
             </tbody>
           </table>
         </div>
+        <div className="actions no-print" style={{ marginTop: 16 }}><button className="btn btn-primary" disabled={!pendingJobChanges.length || savingJobs} onClick={saveMonthlyJobs}>{savingJobs ? "Saving…" : `Save job changes${pendingJobChanges.length ? ` (${pendingJobChanges.length})` : ""}`}</button>{pendingJobChanges.length > 0 && <button className="btn btn-secondary" disabled={savingJobs} onClick={() => setJobDrafts({})}>Cancel changes</button>}</div>
       </section>
 
       {selected && (
