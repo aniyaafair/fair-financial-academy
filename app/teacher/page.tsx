@@ -37,6 +37,7 @@ const DEPOSIT_REASONS = [
   "Stayed Focused During Work Time",
   "Submitted Work",
   "Used an Appropriate Voice Level",
+  "i-Ready Minutes",
 ];
 const WITHDRAWAL_REASONS = [
   "Missing Homework",
@@ -51,6 +52,9 @@ const WITHDRAWAL_REASONS = [
   "Store Purchase",
   "Excessive Talking",
   "Did Not Submit Work",
+  "Getting Up Without Permission",
+  "Going to Book Bag",
+  "Needed Extra Pencil",
 ];
 const REASON_OPTIONS = [...DEPOSIT_REASONS, ...WITHDRAWAL_REASONS, "Custom Reason"];
 
