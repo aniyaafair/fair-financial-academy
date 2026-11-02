@@ -57,6 +57,17 @@ const WITHDRAWAL_REASONS = [
   "Going to Book Bag",
   "Needed Extra Pencil",
   "Cursing/Inappropriate Language",
+  "Repeatedly Interrupting Instruction",
+  "Misusing Classroom Materials",
+  "Throwing Objects",
+  "Unkind Comments or Name-Calling",
+  "Leaving Work Area Messy",
+  "Misusing Chromebook or Visiting Unapproved Sites",
+  "Dishonesty About Work or Behavior",
+  "Leaving Classroom Without Permission",
+  "Disrupting Small-Group or Independent Work",
+  "Copying Work or Allowing Others to Copy",
+  "Refusing to Begin Work After Support and Reminders",
 ];
 const REASON_OPTIONS = [...DEPOSIT_REASONS, ...WITHDRAWAL_REASONS, "Custom Reason"];
 
