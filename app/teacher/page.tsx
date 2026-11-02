@@ -56,6 +56,7 @@ const WITHDRAWAL_REASONS = [
   "Getting Up Without Permission",
   "Going to Book Bag",
   "Needed Extra Pencil",
+  "Cursing/Inappropriate Language",
 ];
 const REASON_OPTIONS = [...DEPOSIT_REASONS, ...WITHDRAWAL_REASONS, "Custom Reason"];
 
