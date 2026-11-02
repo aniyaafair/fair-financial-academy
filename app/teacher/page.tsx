@@ -58,6 +58,52 @@ const WITHDRAWAL_REASONS = [
 ];
 const REASON_OPTIONS = [...DEPOSIT_REASONS, ...WITHDRAWAL_REASONS, "Custom Reason"];
 
+const TRANSACTION_AMOUNTS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 75, 100];
+
+function AmountPicker({ id, label, value, onChange }: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [custom, setCustom] = useState(false);
+
+  return (
+    <>
+      <label htmlFor={id}>{label}</label>
+      <select
+        id={id}
+        value={custom ? "custom" : value}
+        onChange={(event) => {
+          const next = event.target.value;
+          setCustom(next === "custom");
+          onChange(next === "custom" ? "" : next);
+        }}
+      >
+        {TRANSACTION_AMOUNTS.map((price) => (
+          <option key={price} value={String(price)}>${price}</option>
+        ))}
+        <option value="custom">Custom amount</option>
+      </select>
+      {custom && (
+        <>
+          <label htmlFor={`${id}-custom`}>Custom amount ($)</label>
+          <input
+            id={`${id}-custom`}
+            type="number"
+            min="0.01"
+            step="0.01"
+            inputMode="decimal"
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder="Enter an amount"
+          />
+        </>
+      )}
+    </>
+  );
+}
+
 export default function TeacherPage() {
   const [members, setMembers] = useState<AcademyMember[]>([]);
   const [careers, setCareers] = useState<AcademyCareer[]>([]);
@@ -595,7 +641,7 @@ export default function TeacherPage() {
             <h2>Individual Transaction</h2>
             <label>Select member</label>
             <select value={selected.id} onChange={(event) => setSelectedId(event.target.value)}>{members.map((member) => <option value={member.id} key={member.id}>{member.name}</option>)}</select>
-            <label>Amount</label><input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
+            <AmountPicker id="individual-amount" label="Amount" value={amount} onChange={setAmount} />
             <label>Reason</label>
             <select value={reason} onChange={(event) => setReason(event.target.value)}>
               <optgroup label="Deposits">{DEPOSIT_REASONS.map((item) => <option key={item}>{item}</option>)}</optgroup>
@@ -629,7 +675,7 @@ export default function TeacherPage() {
                 </label>
               ))}
             </div>
-            <label>Amount per member</label><input inputMode="decimal" value={classAmount} onChange={(event) => setClassAmount(event.target.value)} />
+            <AmountPicker id="class-amount" label="Amount per member" value={classAmount} onChange={setClassAmount} />
             <label>Reason</label>
             <select value={classReason} onChange={(event) => setClassReason(event.target.value)}>
               <optgroup label="Deposits">{DEPOSIT_REASONS.map((item) => <option key={item}>{item}</option>)}</optgroup>
