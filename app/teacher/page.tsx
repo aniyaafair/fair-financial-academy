@@ -38,6 +38,7 @@ const DEPOSIT_REASONS = [
   "Submitted Work",
   "Used an Appropriate Voice Level",
   "i-Ready Minutes",
+  "Attendance",
 ];
 const WITHDRAWAL_REASONS = [
   "Missing Homework",
